@@ -1,0 +1,137 @@
+/* ============================================================
+   RelayDispatch — Unified CSS
+   Landing Page: warm editorial theme (Playfair Display / Jost)
+   Dashboard:    dark SaaS theme (Inter / JetBrains Mono)
+   Body class `.page-landing` switches to editorial palette.
+   Body class `.page-dashboard` (default) uses dark palette.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Jost:wght@300;400;500;600&family=Inter:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+/* ── Dashboard (default / dark) Theme ─────────────────────── */
+@theme {
+  --font-sans:  "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono:  "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-serif: "Playfair Display", serif;
+
+  /* Dark palette */
+  --color-bg-void:    #060B14;
+  --color-bg-base:    #080D18;
+  --color-bg-raised:  #0C1220;
+  --color-bg-overlay: #101828;
+  --color-bg-inset:   #162035;
+  --color-bg-hover:   #1C2A42;
+
+  --color-border-dim:    #1A2840;
+  --color-border-strong: #243650;
+
+  --color-text-primary:   #F0F6FF;
+  --color-text-secondary: #8DA0B8;
+  --color-text-muted:     #4A6080;
+
+  --color-accent-primary:   #14B8A6;
+  --color-accent-secondary: #0D9488;
+  --color-accent-glow:      rgba(20, 184, 166, 0.12);
+
+  --color-ai-primary: #6366F1;
+  --color-ai-dim:     rgba(99, 102, 241, 0.10);
+
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+
+  /* Landing palette tokens (available globally for scoped use) */
+  --color-bg-main:      #FAFAF7;
+  --color-surface:      #F2F0EB;
+  --color-ink-primary:  #1A1814;
+  --color-ink-secondary: rgba(26, 24, 20, 0.65);
+  --color-ink-tertiary: rgba(26, 24, 20, 0.35);
+  --color-accent:       #C0392B;
+  --color-border:       rgba(26, 24, 20, 0.08);
+  --color-gold:         #C9A84C;
+  --color-gold-soft:    rgba(201, 168, 76, 0.12);
+  --color-green-success: #27AE60;
+}
+
+/* ── Base ─────────────────────────────────────────────────── */
+@layer base {
+  /* Dashboard body (default) */
+  body {
+    @apply bg-bg-void text-text-primary antialiased selection:bg-accent-primary/30 font-sans;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Landing page body — overrides with editorial palette */
+  body.page-landing {
+    @apply bg-bg-main text-ink-primary font-sans;
+    font-feature-settings: normal;
+    selection-color: theme(colors.accent);
+    background-color: var(--color-bg-main);
+    color: var(--color-ink-primary);
+  }
+
+  body.page-landing h1,
+  body.page-landing h2,
+  body.page-landing h3 {
+    font-family: var(--font-serif);
+    letter-spacing: -0.03em;
+  }
+}
+
+/* ── Dashboard Component Classes ─────────────────────────── */
+.kpi-card {
+  @apply bg-bg-raised border border-border-dim rounded-lg p-5 flex-1;
+}
+
+.urgent-card {
+  @apply border-l-[3px] border-l-red-500/30;
+}
+
+.glass-panel {
+  @apply bg-bg-raised border border-border-dim rounded-lg p-5;
+}
+
+.subtle-scroll::-webkit-scrollbar        { width: 4px; }
+.subtle-scroll::-webkit-scrollbar-track  { background: transparent; }
+.subtle-scroll::-webkit-scrollbar-thumb  { @apply bg-border-strong rounded-full; }
+
+/* ── Landing Page Utility Classes ────────────────────────── */
+.display-heading {
+  font-family: var(--font-serif);
+  font-size: clamp(2.5rem, 7vw, 7rem);
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+}
+
+.eyebrow-label {
+  font-family: var(--font-sans);
+  font-size: clamp(10px, 1vw, 12px);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--color-accent);
+}
+
+/* Grain texture overlay for landing page sections */
+.textured-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Disable default spinners for input[type="number"] in modern browsers */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

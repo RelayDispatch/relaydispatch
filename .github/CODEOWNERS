@@ -1,0 +1,144 @@
+# CODEOWNERS
+# ==============================================================================
+# RelayDispatch CODEOWNERS
+#
+# Repository:
+#   https://github.com/RelayDispatch/relaydispatch
+#
+# This repository uses GitHub Organization Teams for automatic code review.
+# Every referenced team must:
+#   • Exist within the RelayDispatch organization
+#   • Be visible
+#   • Have at least Write permission to this repository
+#
+# GitHub documentation:
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Pattern matching follows .gitignore rules.
+# The most specific rule always wins.
+# ==============================================================================
+
+###############################################################################
+# Default Ownership
+###############################################################################
+
+# Every pull request requires review from the Maintainers team unless a more
+# specific rule below applies.
+
+* @RelayDispatch/Maintainers
+
+###############################################################################
+# AI Platform
+###############################################################################
+
+# Core AI orchestration, routing, prompt engineering, guardrails and model
+# integrations.
+
+packages/ai/                     @RelayDispatch/Maintainers
+
+###############################################################################
+# Security
+###############################################################################
+
+# Security-sensitive code should always be reviewed by the Security team.
+
+packages/security/               @RelayDispatch/Security
+
+###############################################################################
+# Workflow Engine
+###############################################################################
+
+# Temporal workflows and worker execution.
+
+packages/workflows/              @RelayDispatch/Maintainers
+apps/worker/                     @RelayDispatch/Maintainers
+
+###############################################################################
+# API
+###############################################################################
+
+apps/api/                        @RelayDispatch/Maintainers
+
+###############################################################################
+# Web Application
+###############################################################################
+
+apps/web/                        @RelayDispatch/Maintainers
+
+###############################################################################
+# Shared Packages
+###############################################################################
+
+packages/shared/                 @RelayDispatch/Maintainers
+
+###############################################################################
+# Configuration
+###############################################################################
+
+packages/config/                 @RelayDispatch/Maintainers
+
+###############################################################################
+# Database
+###############################################################################
+
+packages/database/               @RelayDispatch/Maintainers
+supabase/                        @RelayDispatch/Maintainers
+
+###############################################################################
+# Infrastructure
+###############################################################################
+
+docker/                          @RelayDispatch/Maintainers
+
+###############################################################################
+# GitHub Configuration
+###############################################################################
+
+# CI/CD, Actions, Issue Templates, Discussions, Labels, etc.
+
+.github/                         @RelayDispatch/Owners
+
+###############################################################################
+# Tests
+###############################################################################
+
+tests/                           @RelayDispatch/Reviewers
+
+###############################################################################
+# Documentation
+###############################################################################
+
+docs/                            @RelayDispatch/Documentation
+
+###############################################################################
+# Governance & Legal
+###############################################################################
+
+README.md                        @RelayDispatch/Documentation
+CONTRIBUTING.md                  @RelayDispatch/Documentation
+ROADMAP.md                       @RelayDispatch/Documentation
+CHANGELOG.md                     @RelayDispatch/Documentation
+
+LICENSE.md                       @RelayDispatch/Owners
+CLA.md                           @RelayDispatch/Owners
+GOVERNANCE.md                    @RelayDispatch/Owners
+
+CODE_OF_CONDUCT.md               @RelayDispatch/Owners
+
+SECURITY.md                      @RelayDispatch/Security
+.github/SECURITY.md              @RelayDispatch/Security
+THREAT_MODEL.md                  @RelayDispatch/Security
+PRIVACY.md                       @RelayDispatch/Security
+AI_GOVERNANCE.md                 @RelayDispatch/Security
+
+###############################################################################
+# Release Management
+###############################################################################
+
+BRANCH_PROTECTION.md             @RelayDispatch/Owners
+RELEASE.md                       @RelayDispatch/Owners
+API_VERSIONING.md                @RelayDispatch/Owners
+
+###############################################################################
+# End of CODEOWNERS
+###############################################################################

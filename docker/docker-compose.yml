@@ -1,0 +1,75 @@
+version: '3.9'
+
+services:
+  # ── Hono API Server ──────────────────────────────────────────
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: api
+    ports:
+      - "3001:3001"
+    env_file: ../.env
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - temporal
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── React Web Dashboard ──────────────────────────────────────
+  web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: web
+    ports:
+      - "3000:3000"
+    env_file: ../.env
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+
+  # ── Temporal Worker ──────────────────────────────────────────
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: worker
+    env_file: ../.env
+    environment:
+      - NODE_ENV=production
+      - TEMPORAL_ADDRESS=temporal:7233
+    depends_on:
+      - temporal
+    restart: unless-stopped
+
+  # ── Temporal Server (local dev only) ────────────────────────
+  # For production, use Temporal Cloud and remove this service.
+  temporal:
+    image: temporalio/auto-setup:1.24
+    ports:
+      - "7233:7233"
+    environment:
+      - DB=sqlite
+    volumes:
+      - temporal-data:/tmp/temporal
+    restart: unless-stopped
+
+  # ── Temporal Web UI ──────────────────────────────────────────
+  temporal-ui:
+    image: temporalio/ui:2.28
+    ports:
+      - "8080:8080"
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+    depends_on:
+      - temporal
+    restart: unless-stopped
+
+volumes:
+  temporal-data:

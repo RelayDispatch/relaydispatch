@@ -1,0 +1,89 @@
+# .github/workflows/stale.yml
+# ─────────────────────────────────────────────────────────────
+# RelayDispatch — Stale Issue / PR Management
+#
+# Keeps the issue tracker clean by:
+#   - Marking issues stale after 60 days of no activity
+#   - Marking PRs stale after 30 days of no activity
+#   - Closing stale issues after 14 more days of no activity
+#   - Closing stale PRs after 7 more days of no activity
+#   - Never marking security issues or good-first-issue as stale
+#
+# Runs daily at 01:00 UTC to minimize noise during working hours.
+# ─────────────────────────────────────────────────────────────
+
+name: Stale
+
+on:
+  schedule:
+    - cron: '0 1 * * *'   # Daily at 01:00 UTC
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    name: Mark Stale Issues and PRs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Handle stale issues and PRs
+        uses: actions/stale@v9
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+          # ── Issues ──────────────────────────────────────────
+          days-before-issue-stale: 60
+          days-before-issue-close: 14
+          stale-issue-label: 'status: stale'
+          stale-issue-message: >
+            This issue has been automatically marked as stale because it has not had
+            any activity in the last 60 days.
+
+            If this issue is still relevant, please comment to keep it open.
+            It will be closed in 14 days if no further activity occurs.
+
+            Thank you for contributing to RelayDispatch! 🙏
+          close-issue-message: >
+            This issue was closed automatically after 14 days of inactivity
+            following the stale notice.
+
+            If you believe this is still relevant, feel free to reopen it with
+            additional context.
+
+          # ── Pull Requests ────────────────────────────────────
+          days-before-pr-stale: 30
+          days-before-pr-close: 7
+          stale-pr-label: 'status: stale'
+          stale-pr-message: >
+            This pull request has been automatically marked as stale because it has
+            not had any activity in the last 30 days.
+
+            If you are still working on this, please comment or push a commit.
+            It will be closed in 7 days if no further activity occurs.
+          close-pr-message: >
+            This PR was closed automatically after 7 days of inactivity
+            following the stale notice.
+
+            Thank you for your contribution! Feel free to reopen or submit a
+            fresh PR if you would like to continue.
+
+          # ── Exemptions ──────────────────────────────────────
+          exempt-issue-labels: >-
+            security,
+            pinned,
+            good first issue,
+            help wanted,
+            status: blocked
+          exempt-pr-labels: >-
+            security,
+            pinned,
+            status: blocked,
+            dependencies
+          # Issues assigned to someone are excluded
+          exempt-assignees: ''
+          # Never mark issues with these milestones stale
+          exempt-issue-milestones: ''
+          # Maximum number of operations per run (GitHub API rate limiting)
+          operations-per-run: 150

@@ -1,0 +1,37 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+    open-pull-requests-limit: 10
+    groups:
+      temporal:
+        patterns:
+          - "@temporalio/*"
+      opentelemetry:
+        patterns:
+          - "@opentelemetry/*"
+      supabase:
+        patterns:
+          - "@supabase/*"
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "react-router-dom"
+      dev-tools:
+        patterns:
+          - "typescript"
+          - "vitest"
+          - "eslint"
+          - "@typescript-eslint/*"
+          - "tsx"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday

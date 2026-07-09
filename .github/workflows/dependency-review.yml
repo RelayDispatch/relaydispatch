@@ -1,0 +1,61 @@
+# .github/workflows/dependency-review.yml
+# ─────────────────────────────────────────────────────────────
+# RelayDispatch — Dependency Review
+#
+# Runs on every PR to main/develop.
+# Blocks merge if a PR introduces a dependency with:
+#   - A known critical or high CVE (CVSS >= 7.0)
+#   - An OSI-incompatible license (GPL-2.0-only, AGPL-3.0, etc.)
+#
+# This workflow requires GitHub Advanced Security to be enabled
+# on the repository.
+#
+# See: https://docs.github.com/en/code-security/supply-chain-security/
+#      understanding-your-software-supply-chain/about-dependency-review
+# ─────────────────────────────────────────────────────────────
+
+name: Dependency Review
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+  pull-requests: write   # needed to post inline PR comments
+
+jobs:
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          # Allow these licenses (OSI-compatible + common permissive)
+          allow-licenses: >-
+            MIT,
+            Apache-2.0,
+            BSD-2-Clause,
+            BSD-3-Clause,
+            ISC,
+            CC0-1.0,
+            CC-BY-4.0,
+            0BSD,
+            Python-2.0,
+            BlueOak-1.0.0,
+            Unlicense
+          # Block these licenses for distribution risk
+          deny-licenses: >-
+            GPL-2.0-only,
+            GPL-3.0-only,
+            AGPL-3.0-only,
+            LGPL-2.0-only,
+            LGPL-2.1-only,
+            LGPL-3.0-only
+          # Post a summary comment on the PR
+          comment-summary-in-pr: always

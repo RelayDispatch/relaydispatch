@@ -1,0 +1,73 @@
+# docker/docker-compose.dev.yml
+# ──────────────────────────────────────────────────────────────────────────────
+# RelayDispatch — Development Compose
+#
+# This file is for LOCAL DEVELOPMENT only.
+# It mounts source directories for hot-reload and bundles a local
+# Temporal server so you do not need a Temporal Cloud account.
+#
+# Prerequisites:
+#   - Node.js 22 (for local npm commands)
+#   - Docker Desktop 4.x or Docker Engine 24+
+#   - .env file at project root (copy from .env.example)
+#
+# Quick start:
+#   cp .env.example .env           # fill in your real API keys
+#   docker compose -f docker/docker-compose.dev.yml up
+#
+# Services started:
+#   temporal     — local Temporal server (SQLite, no external DB needed)
+#   temporal-ui  — Temporal Web UI at http://localhost:8080
+#
+# The API, web, and worker are NOT run via Docker in development.
+# Run them natively for hot-reload:
+#   npm run dev              # starts API + web with tsx watch
+#   npm run dev:worker       # starts Temporal worker with tsx
+#
+# This design gives you:
+#   - Fast TypeScript hot-reload without Docker rebuild cycles
+#   - IDE debugger attachment support
+#   - Real Temporal server for workflow testing
+# ──────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ── Local Temporal Server ──────────────────────────────────────────────────
+  # Uses the official Temporal auto-setup image with SQLite backend.
+  # No external database required for local development.
+  # For production, use Temporal Cloud or a PostgreSQL-backed Temporal cluster.
+  temporal:
+    image: temporalio/auto-setup:1.27
+    container_name: relaydispatch-temporal-dev
+    ports:
+      - "7233:7233"
+    environment:
+      - DB=sqlite
+      - SKIP_DEFAULT_NAMESPACE_CREATION=false
+    volumes:
+      - temporal-dev-data:/tmp/temporal
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "tctl", "cluster", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ── Temporal Web UI ────────────────────────────────────────────────────────
+  # View workflow history, search runs, and debug at http://localhost:8080
+  temporal-ui:
+    image: temporalio/ui:2.31
+    container_name: relaydispatch-temporal-ui-dev
+    ports:
+      - "8080:8080"
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000,http://localhost:3001
+    depends_on:
+      temporal:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  temporal-dev-data:
+    name: relaydispatch-temporal-dev-data
