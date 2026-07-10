@@ -47,7 +47,7 @@ const dlqDepth           = new Counter('relaydispatch_dlq_inserts_total');
 
 // ── Env config ────────────────────────────────────────────────
 const BASE_URL    = __ENV.BASE_URL    || 'http://localhost:3000';
-const TOKEN       = __ENV.INTAKE_TOKEN || 'dev-verify-token';
+const TOKEN       = __ENV.INTAKE_TOKEN || '';
 const AUTH_JWT    = __ENV.AUTH_JWT    || '';
 const SCENARIO    = __ENV.SCENARIO   || 'baseline';
 

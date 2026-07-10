@@ -21,12 +21,51 @@ import pino from 'pino';
 
 const log = pino({ name: 'relay-security', level: process.env.LOG_LEVEL ?? 'info' });
 
+function safeStringEqual(provided: string | undefined, expected: string): boolean {
+  if (!provided) return false;
+  const a = Buffer.from(provided, 'utf8');
+  const b = Buffer.from(expected, 'utf8');
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
+/**
+ * Authorizes an incoming Gmail Pub/Sub push delivery.
+ *
+ * Policy:
+ *   - Production: HMAC secret required; token fallback disabled.
+ *   - When GMAIL_PUBSUB_HMAC_SECRET is set: HMAC only (no token bypass).
+ *   - Development without HMAC: optional GMAIL_PUBSUB_VERIFY_TOKEN query param.
+ */
+export async function authorizeGmailPubSubPush(
+  rawBody: string,
+  signatureHeader: string | undefined,
+  queryToken: string | undefined,
+): Promise<boolean> {
+  const hmacSecret = process.env.GMAIL_PUBSUB_HMAC_SECRET;
+  const verifyToken = process.env.GMAIL_PUBSUB_VERIFY_TOKEN;
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  if (hmacSecret) {
+    return verifyPubSubSignature(rawBody, signatureHeader);
+  }
+
+  if (isProduction) {
+    log.error('GMAIL_PUBSUB_HMAC_SECRET is required in production — rejecting intake');
+    return false;
+  }
+
+  if (verifyToken) {
+    return safeStringEqual(queryToken, verifyToken);
+  }
+
+  log.warn('Gmail intake: no HMAC secret or verify token configured — rejecting');
+  return false;
+}
+
 /**
  * Verifies the HMAC-SHA256 signature on an incoming Pub/Sub push delivery.
- *
- * @param rawBody - The raw request body string (must be read before parsing)
- * @param signatureHeader - The X-Goog-Signature header value
- * @returns true if the signature is valid (or if in dev with no secret configured)
+ * Call only when GMAIL_PUBSUB_HMAC_SECRET is configured.
  */
 export async function verifyPubSubSignature(
   rawBody: string,
@@ -39,8 +78,8 @@ export async function verifyPubSubSignature(
       log.error('GMAIL_PUBSUB_HMAC_SECRET missing in production — rejecting');
       return false;
     }
-    log.warn('GMAIL_PUBSUB_HMAC_SECRET not set — HMAC verification disabled (dev mode only)');
-    return true; // degraded — allow legacy token path to handle auth
+    log.warn('verifyPubSubSignature called without GMAIL_PUBSUB_HMAC_SECRET — rejecting');
+    return false;
   }
 
   if (!signatureHeader) {

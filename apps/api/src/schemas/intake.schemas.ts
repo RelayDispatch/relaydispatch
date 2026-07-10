@@ -23,7 +23,6 @@ export const GmailNotificationDataSchema = z.object({
 });
 
 export const DirectIntakeSchema = z.object({
-  org_id:      z.string().uuid(),
   from_email:  z.string().email(),
   from_name:   z.string().optional(),
   subject:     z.string().min(1).max(500),

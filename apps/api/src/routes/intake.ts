@@ -6,7 +6,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import pino from 'pino';
-import { verifyPubSubSignature } from '../../../../packages/security/src/hmac.js';
+import { authorizeGmailPubSubPush } from '../../../../packages/security/src/hmac.js';
 import { createServiceSupabase } from '../../../../packages/database/src/client.js';
 import { getTemporalClient } from '../../../../packages/workflows/temporal/src/client.js';
 import { DISPATCH_WORKFLOW_NAME } from '../../../worker/src/dispatchWorkflow.js';
@@ -15,22 +15,61 @@ import { GmailPubSubSchema, DirectIntakeSchema } from '../schemas/intake.schemas
 const log = pino({ name: 'api-intake', level: process.env.LOG_LEVEL ?? 'info' });
 export const intakeRouter = new Hono();
 
+async function startIntakeWorkflow(
+  workflowInput: Record<string, unknown>,
+  meta: { orgId: string; emailAddress: string; historyId: string | null; source: 'gmail' | 'direct' },
+) {
+  const sb = createServiceSupabase();
+  try {
+    const client = await getTemporalClient();
+    const workflowId = `relaydispatch-dispatch-${workflowInput.threadId}`;
+    const handle = await client.workflow.start(DISPATCH_WORKFLOW_NAME, {
+      taskQueue: process.env.TEMPORAL_TASK_QUEUE ?? 'relaydispatch-dispatch',
+      workflowId,
+      args: [workflowInput],
+    });
+    log.info({ workflowId, runId: handle.firstExecutionRunId }, 'Temporal workflow started successfully');
+    return { threadId: workflowInput.threadId as string, status: 'started' as const };
+  } catch (err) {
+    log.error({ err, workflowInput }, 'Failed to start Temporal workflow — writing to DLQ');
+
+    const { error: dlqErr } = await sb
+      .from('failed_webhooks')
+      .insert({
+        org_id: meta.orgId,
+        raw_payload: workflowInput as any,
+        retry_count: 0,
+        resolved: false,
+        failure_reason: String(err),
+        email_address: meta.emailAddress,
+        history_id: meta.historyId,
+        source: meta.source,
+      });
+
+    if (dlqErr) {
+      log.error({ dlqErr }, 'FATAL: Failed to write webhook to DLQ database');
+    }
+
+    return {
+      threadId: workflowInput.threadId as string,
+      status: 'queued' as const,
+      queued_for_retry: true,
+    };
+  }
+}
+
 // Public Webhook Intake (Gmail Pub/Sub push)
 intakeRouter.post('/gmail', async (c) => {
   const rawBody = await c.req.text();
   const signature = c.req.header('X-Goog-Signature');
-
-  // 1. Signature validation
-  const isValid = await verifyPubSubSignature(rawBody, signature);
   const token = c.req.query('token');
-  const expectedToken = process.env.GMAIL_PUBSUB_VERIFY_TOKEN ?? 'dev-verify-token';
 
-  if (!isValid && token !== expectedToken) {
-    log.warn('Unauthorized webhook intake request - signature and token verification failed');
+  const authorized = await authorizeGmailPubSubPush(rawBody, signature, token);
+  if (!authorized) {
+    log.warn('Unauthorized webhook intake request');
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
-  // 2. Body parsing
   let payload: any;
   try {
     payload = JSON.parse(rawBody);
@@ -44,7 +83,6 @@ intakeRouter.post('/gmail', async (c) => {
     return c.json({ error: 'Invalid payload' }, 400);
   }
 
-  // 3. Decode Google Notification Data
   let notification: { emailAddress: string; historyId: string };
   try {
     const dataStr = Buffer.from(parsed.data.message.data, 'base64').toString('utf8');
@@ -59,7 +97,6 @@ intakeRouter.post('/gmail', async (c) => {
 
   log.info({ emailAddress, historyId }, 'Processing Gmail intake webhook');
 
-  // 4. Organization lookup using service role
   const sb = createServiceSupabase();
   const { data: org, error: orgErr } = await sb
     .from('organizations')
@@ -72,7 +109,6 @@ intakeRouter.post('/gmail', async (c) => {
     return c.json({ status: 'ignored', reason: 'org_not_found' }, 202);
   }
 
-  // 5. Atomic thread upsert (ON CONFLICT DO NOTHING equivalent logic)
   const threadId = crypto.randomUUID();
   const { error: threadErr } = await sb
     .from('threads')
@@ -102,71 +138,54 @@ intakeRouter.post('/gmail', async (c) => {
     }
   }
 
-  // 6. Start Temporal Workflow
   const workflowInput = {
     threadId: finalThreadId,
     orgId: org.id,
-    emailAddress: emailAddress,
-    historyId: historyId,
+    emailAddress,
+    historyId,
     nylasGrantId: org.nylas_grant_id,
     sb243Footer: org.sb243_footer ?? 'Dispatch is an AI Service Coordinator — Powered by RelayDispatch',
     timezone: org.timezone ?? 'America/Chicago',
   };
 
-  try {
-    const client = await getTemporalClient();
-    const workflowId = `relaydispatch-dispatch-${finalThreadId}`;
-    const handle = await client.workflow.start(DISPATCH_WORKFLOW_NAME, {
-      taskQueue: process.env.TEMPORAL_TASK_QUEUE ?? 'relaydispatch-dispatch',
-      workflowId,
-      args: [workflowInput],
-    });
-    log.info({ workflowId, runId: handle.firstExecutionRunId }, 'Temporal workflow started successfully');
-    return c.json({ thread_id: finalThreadId, status: 'started' }, 202);
-  } catch (err) {
-    log.error({ err, workflowInput }, 'Failed to start Temporal workflow — writing to DLQ');
-    
-    const { error: dlqErr } = await sb
-      .from('failed_webhooks')
-      .insert({
-        org_id: org.id,
-        raw_payload: workflowInput as any,
-        retry_count: 0,
-        resolved: false,
-        failure_reason: String(err),
-        email_address: emailAddress,
-        history_id: historyId,
-        source: 'gmail',
-      });
-    
-    if (dlqErr) {
-      log.error({ dlqErr }, 'FATAL: Failed to write webhook to DLQ database');
-    }
+  const result = await startIntakeWorkflow(workflowInput, {
+    orgId: org.id,
+    emailAddress,
+    historyId,
+    source: 'gmail',
+  });
 
-    return c.json({
-      thread_id: finalThreadId,
-      status: 'queued',
-      queued_for_retry: true,
-      error: String(err),
-    }, 202);
-  }
+  return c.json({ thread_id: result.threadId, status: result.status, ...(result.queued_for_retry ? { queued_for_retry: true } : {}) }, 202);
 });
 
-// Authenticated Direct Intake Route
-intakeRouter.post('/direct', zValidator('json', DirectIntakeSchema), async (c) => {
+/** Authenticated direct intake — mounted at POST /api/intake/direct */
+export const directIntakeRouter = new Hono();
+
+directIntakeRouter.post('/direct', zValidator('json', DirectIntakeSchema), async (c) => {
   const body = c.req.valid('json');
   const db = c.get('db' as never) as ReturnType<typeof createServiceSupabase>;
 
-  log.info({ body }, 'Processing direct intake request');
+  const { data: member, error: memberErr } = await db
+    .from('org_members')
+    .select('org_id')
+    .limit(1)
+    .single();
+
+  if (memberErr || !member) {
+    log.warn({ memberErr }, 'Direct intake rejected — caller is not a member of any organization');
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  log.info({ org_id: member.org_id, channel: body.channel }, 'Processing direct intake request');
 
   const { data: org, error: orgErr } = await db
     .from('organizations')
     .select('id, sb243_footer, timezone, nylas_grant_id')
-    .eq('id', body.org_id)
+    .eq('id', member.org_id)
     .single();
 
   if (orgErr || !org) {
-    log.warn({ org_id: body.org_id, orgErr }, 'Organization not found for direct intake');
+    log.warn({ org_id: member.org_id, orgErr }, 'Organization not found for direct intake');
     return c.json({ error: 'Organization not found' }, 404);
   }
 
@@ -204,7 +223,7 @@ intakeRouter.post('/direct', zValidator('json', DirectIntakeSchema), async (c) =
   }
 
   const workflowInput = {
-    threadId: threadId,
+    threadId,
     orgId: org.id,
     emailAddress: body.from_email,
     historyId: null,
@@ -213,38 +232,16 @@ intakeRouter.post('/direct', zValidator('json', DirectIntakeSchema), async (c) =
     timezone: org.timezone ?? 'America/Chicago',
   };
 
-  try {
-    const client = await getTemporalClient();
-    const workflowId = `relaydispatch-dispatch-${threadId}`;
-    const handle = await client.workflow.start(DISPATCH_WORKFLOW_NAME, {
-      taskQueue: process.env.TEMPORAL_TASK_QUEUE ?? 'relaydispatch-dispatch',
-      workflowId,
-      args: [workflowInput],
-    });
-    log.info({ workflowId, runId: handle.firstExecutionRunId }, 'Temporal workflow started successfully for direct intake');
-    return c.json({ thread_id: threadId, status: 'started' }, 202);
-  } catch (err) {
-    log.error({ err, workflowInput }, 'Failed to start Temporal workflow for direct intake — writing to DLQ');
-    
-    const sb = createServiceSupabase();
-    await sb
-      .from('failed_webhooks')
-      .insert({
-        org_id: org.id,
-        raw_payload: workflowInput as any,
-        retry_count: 0,
-        resolved: false,
-        failure_reason: String(err),
-        email_address: body.from_email,
-        history_id: null,
-        source: 'direct',
-      });
+  const result = await startIntakeWorkflow(workflowInput, {
+    orgId: org.id,
+    emailAddress: body.from_email,
+    historyId: null,
+    source: 'direct',
+  });
 
-    return c.json({
-      thread_id: threadId,
-      status: 'queued',
-      queued_for_retry: true,
-      error: String(err),
-    }, 202);
-  }
+  return c.json({
+    thread_id: result.threadId,
+    status: result.status,
+    ...(result.queued_for_retry ? { queued_for_retry: true } : {}),
+  }, 202);
 });

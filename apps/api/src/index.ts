@@ -14,7 +14,7 @@ import { validateApiEnv } from '../../../packages/shared/utils/src/validateEnv.j
 import { authMiddleware } from './middleware/auth.js';
 import { quotaMiddleware } from './middleware/quotaMiddleware.js';
 import { handleHealth } from './routes/health.js';
-import { intakeRouter } from './routes/intake.js';
+import { intakeRouter, directIntakeRouter } from './routes/intake.js';
 import { threadsRouter } from './routes/threads.js';
 import { jobsRouter } from './routes/jobs.js';
 import { techniciansRouter } from './routes/technicians.js';
@@ -47,6 +47,9 @@ api.use('*', authMiddleware);
 
 // Mount Provider management routes
 api.route('/providers', providersRouter);
+
+// Authenticated manual intake (org resolved from JWT — no client-supplied org_id)
+api.route('/intake', directIntakeRouter);
 
 // Mount System management routes (capabilities, configuration)
 // These are read-only system-level endpoints — separate from provider CRUD.
