@@ -8,10 +8,13 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import pino from 'pino';
 import { createServiceSupabase } from '../../../../packages/database/src/client.js';
+import type { Database } from '../../../../packages/database/src/database.types.js';
 import {
   isOrgSecretConfigured,
   writeOrgSecretField,
 } from '../../../../packages/security/src/orgSecrets.js';
+
+type OrgUpdate = Database['public']['Tables']['organizations']['Update'];
 
 const log = pino({ name: 'api-providers', level: process.env.LOG_LEVEL ?? 'info' });
 export const providersRouter = new Hono();
@@ -104,7 +107,7 @@ providersRouter.post('/configuration', zValidator('json', ProviderConfigSchema),
     return c.json({ error: 'Caller does not belong to any organization' }, 403);
   }
 
-  const updates: Record<string, unknown> = {};
+  const updates: OrgUpdate = {};
   if (body.twilio_number !== undefined) updates.twilio_number = body.twilio_number;
   if (body.twilio_account_sid !== undefined) updates.twilio_account_sid = body.twilio_account_sid;
   if (body.twilio_auth_token !== undefined) {
