@@ -17,6 +17,13 @@ import {
   deserializeVault,
   auditSummary,
 } from '../../../../packages/security/src/redactor.js';
+import {
+  hydrateOrgSecretFields,
+  mergeOrgSecretWrites,
+} from '../../../../packages/security/src/orgSecrets.js';
+
+const MAIL_SECRET_COLUMNS =
+  'mail_access_token, mail_access_token_enc, mail_refresh_token, mail_refresh_token_enc, mail_token_expires_at';
 
 // ============================================================
 // TYPES
@@ -53,7 +60,7 @@ async function refreshGoogleMailToken(orgId: string, refreshToken: string): Prom
   const data = await res.json() as any;
   if (data.access_token) {
     await supabase.from('organizations').update({
-      mail_access_token:      data.access_token,
+      ...mergeOrgSecretWrites({ mail_access_token: data.access_token }),
       mail_token_expires_at:  new Date(Date.now() + (data.expires_in ?? 3600) * 1000).toISOString(),
       updated_at:             new Date().toISOString(),
     } as any).eq('id', orgId);
@@ -79,8 +86,10 @@ async function refreshMicrosoftMailToken(orgId: string, refreshToken: string): P
   const data = await res.json() as any;
   if (data.access_token) {
     await supabase.from('organizations').update({
-      mail_access_token:      data.access_token,
-      mail_refresh_token:     data.refresh_token ?? refreshToken,
+      ...mergeOrgSecretWrites({
+        mail_access_token:  data.access_token,
+        mail_refresh_token: data.refresh_token ?? refreshToken,
+      }),
       mail_token_expires_at:  new Date(Date.now() + (data.expires_in ?? 3600) * 1000).toISOString(),
       updated_at:             new Date().toISOString(),
     } as any).eq('id', orgId);
@@ -101,20 +110,21 @@ export async function fetchEmailContent(params: {
   try {
     let orgQuery = supabase
       .from('organizations')
-      .select('id, mail_provider, mail_email_address, mail_access_token, mail_refresh_token, mail_token_expires_at');
+      .select(`id, mail_provider, mail_email_address, ${MAIL_SECRET_COLUMNS}`);
 
     if (params.nylasGrantId) {
       orgQuery = orgQuery.or(`id.eq.${params.nylasGrantId},nylas_grant_id.eq.${params.nylasGrantId}`);
     } else {
       orgQuery = orgQuery.eq('intake_email_address', params.emailAddress);
     }
-    const { data: org } = await orgQuery.maybeSingle() as any;
+    const { data: orgRow } = await orgQuery.maybeSingle() as any;
+    const org = orgRow ? hydrateOrgSecretFields(orgRow) : null;
 
     const provider = org?.mail_provider ?? 'sandbox';
 
     // 1. Sandbox simulation mode
     if (provider === 'sandbox') {
-      log.info({ nylasGrantId: params.nylasGrantId }, 'fetchEmailContent: Unconditional Sandbox Mail simulator active');
+      log.info({ emailAddress: params.emailAddress }, 'fetchEmailContent: Unconditional Sandbox Mail simulator active');
       return {
         subject:        'Need immediate AC repair tomorrow',
         bodyText:       'Hello, my name is Sarah Johnson. My AC unit is blowing hot air. I live at 104 Oak Lane, and my phone number is 555-0199. It is a Carrier AC unit, about 5 years old. Can you please schedule a technician to come out tomorrow afternoon around 2:00 PM? Thank you!',
@@ -338,11 +348,12 @@ export async function sendEmailResponseActivity(params: {
   );
 
   // ── 2. Load Mail Settings ──────────────────────────────────
-  const { data: org } = await supabase
+  const { data: orgRow } = await supabase
     .from('organizations')
-    .select('mail_provider, mail_access_token, mail_refresh_token, mail_token_expires_at')
+    .select(`mail_provider, ${MAIL_SECRET_COLUMNS}`)
     .eq('id', params.orgId)
     .single() as any;
+  const org = orgRow ? hydrateOrgSecretFields(orgRow) : null;
 
   const provider            = org?.mail_provider ?? 'sandbox';
   let nylasMessageId: string | null = null;

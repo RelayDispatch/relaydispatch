@@ -8,6 +8,10 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import pino from 'pino';
 import { createServiceSupabase } from '../../../../packages/database/src/client.js';
+import {
+  isOrgSecretConfigured,
+  writeOrgSecretField,
+} from '../../../../packages/security/src/orgSecrets.js';
 
 const log = pino({ name: 'api-providers', level: process.env.LOG_LEVEL ?? 'info' });
 export const providersRouter = new Hono();
@@ -28,7 +32,7 @@ providersRouter.get('/', async (c) => {
   
   const { data: org, error } = await db
     .from('organizations')
-    .select('twilio_number, nylas_grant_id, intake_email_address, mail_provider')
+    .select('twilio_number, nylas_grant_id, intake_email_address, mail_provider, twilio_auth_token_enc, twilio_auth_token')
     .limit(1)
     .single();
 
@@ -65,7 +69,7 @@ providersRouter.get('/configuration', async (c) => {
   const db = c.get('db' as never) as ReturnType<typeof createServiceSupabase>;
   const { data: org, error } = await db
     .from('organizations')
-    .select('id, twilio_number, twilio_account_sid, nylas_grant_id, intake_email_address, mail_provider, mail_email_address')
+    .select('id, twilio_number, twilio_account_sid, nylas_grant_id, intake_email_address, mail_provider, mail_email_address, twilio_auth_token_enc, twilio_auth_token')
     .limit(1)
     .single();
 
@@ -76,8 +80,9 @@ providersRouter.get('/configuration', async (c) => {
   return c.json({
     twilio_number: org.twilio_number,
     twilio_account_sid: org.twilio_account_sid ? '••••••••' : null,
-    twilio_auth_token_configured: !!(org as any).twilio_auth_token,
+    twilio_auth_token_configured: isOrgSecretConfigured(org as any, 'twilio_auth_token'),
     intake_email_address: org.intake_email_address,
+    // nylas_grant_id is an OAuth grant identifier (not a bearer token) — safe for admin configuration UI.
     nylas_grant_id: org.nylas_grant_id,
     mail_provider: org.mail_provider,
     mail_email_address: org.mail_email_address,
@@ -99,10 +104,12 @@ providersRouter.post('/configuration', zValidator('json', ProviderConfigSchema),
     return c.json({ error: 'Caller does not belong to any organization' }, 403);
   }
 
-  const updates: any = {};
+  const updates: Record<string, unknown> = {};
   if (body.twilio_number !== undefined) updates.twilio_number = body.twilio_number;
   if (body.twilio_account_sid !== undefined) updates.twilio_account_sid = body.twilio_account_sid;
-  if (body.twilio_auth_token !== undefined) updates.twilio_auth_token = body.twilio_auth_token;
+  if (body.twilio_auth_token !== undefined) {
+    Object.assign(updates, writeOrgSecretField('twilio_auth_token', body.twilio_auth_token));
+  }
   if (body.intake_email_address !== undefined) updates.intake_email_address = body.intake_email_address;
   if (body.nylas_grant_id !== undefined) updates.nylas_grant_id = body.nylas_grant_id;
   if (body.mail_provider !== undefined) updates.mail_provider = body.mail_provider;
@@ -116,8 +123,8 @@ providersRouter.post('/configuration', zValidator('json', ProviderConfigSchema),
     .single();
 
   if (error) {
-    log.error({ error }, 'Failed to update organization provider configurations');
-    return c.json({ error: error.message }, 500);
+    log.error({ error: error.message }, 'Failed to update organization provider configurations');
+    return c.json({ error: 'Failed to update provider configuration' }, 500);
   }
 
   return c.json(updatedOrg);

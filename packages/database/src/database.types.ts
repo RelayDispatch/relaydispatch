@@ -403,8 +403,19 @@ export type Database = {
           mail_token_expires_at: string | null
           twilio_account_sid: string | null
           twilio_auth_token: string | null
+          twilio_auth_token_enc: string | null
           twilio_phone_number: string | null
           twilio_webhook_configured: boolean
+          org_secrets_cutover_completed_at: string | null
+          org_secrets_plaintext_dropped_at: string | null
+          mail_access_token_enc: string | null
+          mail_refresh_token_enc: string | null
+          jobber_access_token_enc: string | null
+          jobber_refresh_token_enc: string | null
+          servicetitan_client_secret_enc: string | null
+          servicetitan_access_token_enc: string | null
+          housecall_access_token_enc: string | null
+          housecall_refresh_token_enc: string | null
         }
         Insert: {
           created_at?: string
@@ -442,8 +453,19 @@ export type Database = {
           mail_token_expires_at?: string | null
           twilio_account_sid?: string | null
           twilio_auth_token?: string | null
+          twilio_auth_token_enc?: string | null
           twilio_phone_number?: string | null
           twilio_webhook_configured?: boolean
+          org_secrets_cutover_completed_at?: string | null
+          org_secrets_plaintext_dropped_at?: string | null
+          mail_access_token_enc?: string | null
+          mail_refresh_token_enc?: string | null
+          jobber_access_token_enc?: string | null
+          jobber_refresh_token_enc?: string | null
+          servicetitan_client_secret_enc?: string | null
+          servicetitan_access_token_enc?: string | null
+          housecall_access_token_enc?: string | null
+          housecall_refresh_token_enc?: string | null
         }
         Update: {
           created_at?: string
@@ -481,8 +503,19 @@ export type Database = {
           mail_token_expires_at?: string | null
           twilio_account_sid?: string | null
           twilio_auth_token?: string | null
+          twilio_auth_token_enc?: string | null
           twilio_phone_number?: string | null
           twilio_webhook_configured?: boolean
+          org_secrets_cutover_completed_at?: string | null
+          org_secrets_plaintext_dropped_at?: string | null
+          mail_access_token_enc?: string | null
+          mail_refresh_token_enc?: string | null
+          jobber_access_token_enc?: string | null
+          jobber_refresh_token_enc?: string | null
+          servicetitan_client_secret_enc?: string | null
+          servicetitan_access_token_enc?: string | null
+          housecall_access_token_enc?: string | null
+          housecall_refresh_token_enc?: string | null
         }
         Relationships: []
       }

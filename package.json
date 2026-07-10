@@ -29,7 +29,9 @@
     "lint": "eslint . --ext .ts,.tsx",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "migrate:org-secrets-cutover": "node scripts/migrate-org-secrets-cutover.mjs",
+    "migrate:org-secrets-drop-plaintext": "node scripts/drop-org-secrets-plaintext-columns.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

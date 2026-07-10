@@ -18,8 +18,20 @@
 import pino from 'pino';
 import { createClient } from '@supabase/supabase-js';
 import type { DispatchProvider, ExternalJobPayload, ExternalJobResult } from './interface.js';
+import {
+  hydrateOrgSecretFields,
+  mergeOrgSecretWrites,
+  isOrgSecretConfigured,
+} from '../../../security/src/orgSecrets.js';
 
 const log = pino({ name: 'crm-registry', level: process.env.LOG_LEVEL ?? 'info' });
+
+const JOBBER_SECRET_COLUMNS =
+  'jobber_access_token, jobber_access_token_enc, jobber_refresh_token, jobber_refresh_token_enc, jobber_token_expires_at, jobber_account_id';
+const SERVICETITAN_SECRET_COLUMNS =
+  'servicetitan_tenant_id, servicetitan_client_id, servicetitan_client_secret, servicetitan_client_secret_enc, servicetitan_access_token, servicetitan_access_token_enc, servicetitan_token_expires_at';
+const HOUSECALL_SECRET_COLUMNS =
+  'housecall_access_token, housecall_access_token_enc, housecall_refresh_token, housecall_refresh_token_enc, housecall_token_expires_at';
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -46,11 +58,13 @@ class JobberDispatchProvider implements DispatchProvider {
   async createExternalJob(payload: ExternalJobPayload): Promise<ExternalJobResult> {
     const { orgId, jobId } = payload;
 
-    const { data: org, error } = await supabase
+    const { data: orgRow, error } = await supabase
       .from('organizations')
-      .select('jobber_access_token, jobber_refresh_token, jobber_token_expires_at, jobber_account_id')
+      .select(JOBBER_SECRET_COLUMNS)
       .eq('id', orgId)
       .single();
+
+    const org = orgRow ? hydrateOrgSecretFields(orgRow) : null;
 
     if (error || !org) {
       log.error({ orgId, error }, 'JobberDispatchProvider: Failed to fetch organization credentials');
@@ -76,8 +90,10 @@ class JobberDispatchProvider implements DispatchProvider {
         await supabase
           .from('organizations')
           .update({
-            jobber_access_token:     refreshed.accessToken,
-            jobber_refresh_token:    refreshed.refreshToken,
+            ...mergeOrgSecretWrites({
+              jobber_access_token:  refreshed.accessToken,
+              jobber_refresh_token: refreshed.refreshToken,
+            }),
             jobber_token_expires_at: new Date(refreshed.expiresAt).toISOString(),
             updated_at:              new Date().toISOString(),
           })
@@ -119,11 +135,13 @@ class JobberDispatchProvider implements DispatchProvider {
     const { orgId } = payload;
     if (!orgId) return false;
 
-    const { data: org } = await supabase
+    const { data: orgRow } = await supabase
       .from('organizations')
-      .select('jobber_access_token, jobber_refresh_token, jobber_token_expires_at')
+      .select(JOBBER_SECRET_COLUMNS)
       .eq('id', orgId)
       .single();
+
+    const org = orgRow ? hydrateOrgSecretFields(orgRow) : null;
 
     if (!org || !org.jobber_access_token) return false;
 
@@ -187,11 +205,13 @@ class ServiceTitanDispatchProvider implements DispatchProvider {
   async createExternalJob(payload: ExternalJobPayload): Promise<ExternalJobResult> {
     const { orgId, jobId } = payload;
 
-    const { data: org, error } = await supabase
+    const { data: orgRow, error } = await supabase
       .from('organizations')
-      .select('servicetitan_tenant_id, servicetitan_client_id, servicetitan_client_secret, servicetitan_access_token, servicetitan_token_expires_at')
+      .select(SERVICETITAN_SECRET_COLUMNS)
       .eq('id', orgId)
       .single();
+
+    const org = orgRow ? hydrateOrgSecretFields(orgRow) : null;
 
     if (error || !org) {
       log.error({ orgId, error }, 'ServiceTitanDispatchProvider: Failed to fetch credentials');
@@ -215,7 +235,7 @@ class ServiceTitanDispatchProvider implements DispatchProvider {
         await supabase
           .from('organizations')
           .update({
-            servicetitan_access_token:     token,
+            ...mergeOrgSecretWrites({ servicetitan_access_token: token }),
             servicetitan_token_expires_at: new Date(auth.expiresAt).toISOString(),
             updated_at:                    new Date().toISOString(),
           })
@@ -265,11 +285,13 @@ class HousecallProDispatchProvider implements DispatchProvider {
   async createExternalJob(payload: ExternalJobPayload): Promise<ExternalJobResult> {
     const { orgId, jobId } = payload;
 
-    const { data: org, error } = await supabase
+    const { data: orgRow, error } = await supabase
       .from('organizations')
-      .select('housecall_access_token, housecall_refresh_token, housecall_token_expires_at')
+      .select(HOUSECALL_SECRET_COLUMNS)
       .eq('id', orgId)
       .single();
+
+    const org = orgRow ? hydrateOrgSecretFields(orgRow) : null;
 
     if (error || !org) {
       log.error({ orgId, error }, 'HousecallProDispatchProvider: Failed to fetch credentials');
@@ -305,8 +327,10 @@ class HousecallProDispatchProvider implements DispatchProvider {
         await supabase
           .from('organizations')
           .update({
-            housecall_access_token:     token,
-            housecall_refresh_token:    data.refresh_token,
+            ...mergeOrgSecretWrites({
+              housecall_access_token:  token,
+              housecall_refresh_token: data.refresh_token,
+            }),
             housecall_token_expires_at: new Date(Date.now() + (data.expires_in ?? 3600) * 1000).toISOString(),
             updated_at:                 new Date().toISOString(),
           })
@@ -356,7 +380,7 @@ class MultiCrmDispatchProvider implements DispatchProvider {
     try {
       const { data: org } = await supabase
         .from('organizations')
-        .select('jobber_access_token, servicetitan_client_id, housecall_access_token')
+        .select('jobber_access_token, jobber_access_token_enc, servicetitan_client_id, housecall_access_token, housecall_access_token_enc')
         .eq('id', orgId)
         .single();
 
@@ -366,11 +390,11 @@ class MultiCrmDispatchProvider implements DispatchProvider {
         log.info({ orgId }, 'crm-registry: Delegating to ServiceTitan');
         return this.servicetitanProvider;
       }
-      if (org.housecall_access_token) {
+      if (isOrgSecretConfigured(org, 'housecall_access_token')) {
         log.info({ orgId }, 'crm-registry: Delegating to Housecall Pro');
         return this.housecallProvider;
       }
-      if (org.jobber_access_token) {
+      if (isOrgSecretConfigured(org, 'jobber_access_token')) {
         log.info({ orgId }, 'crm-registry: Delegating to Jobber');
         return this.jobberProvider;
       }
