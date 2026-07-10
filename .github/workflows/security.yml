@@ -44,7 +44,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
       - name: Run Trivy File System Scan
-        uses: aquasecurity/trivy-action@0.30.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
