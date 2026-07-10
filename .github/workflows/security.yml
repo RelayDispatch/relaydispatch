@@ -22,37 +22,44 @@ jobs:
   codeql:
     name: SAST CodeQL Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: typescript, javascript
           queries: security-and-quality
+
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+        uses: github/codeql-action/autobuild@v4
+
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: codeql-ts
 
   trivy:
     name: Trivy FS Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
       - name: Run Trivy File System Scan
-        uses: aquasecurity/trivy-action@0.30.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
           format: sarif
           output: trivy-fs.sarif
           severity: CRITICAL,HIGH
+
       - name: Upload Scan Results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-fs.sarif
           category: trivy-fs
@@ -60,15 +67,73 @@ jobs:
   secrets:
     name: Secret Scanning
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0
-      - name: Gitleaks Scan
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download and Verify Gitleaks CLI
+        run: |
+          GITLEAKS_VERSION="8.30.1"
+          echo "Downloading Gitleaks v${GITLEAKS_VERSION}..."
+          curl -sSLo gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          
+          # Download and verify official SHA256 checksum
+          curl -sSLo checksums.txt "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          grep "gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" checksums.txt | sha256sum -c -
+          
+          tar -xzf gitleaks.tar.gz gitleaks
+          chmod +x gitleaks
+          ./gitleaks version
+
+      - name: Run Gitleaks Security Scan
+        run: |
+          # Generate JSON report (capture exit status to prevent early termination)
+          ./gitleaks git --source=. --verbose --redact --format=json --report-path=gitleaks.json || JSON_EXIT=$?
+          
+          # Generate SARIF report (capture exit status)
+          ./gitleaks git --source=. --verbose --redact --format=sarif --report-path=gitleaks.sarif || SARIF_EXIT=$?
+          
+          # Pass exit codes to GitHub Actions environment
+          echo "JSON_EXIT_CODE=$JSON_EXIT" >> $GITHUB_ENV
+          echo "SARIF_EXIT_CODE=$SARIF_EXIT" >> $GITHUB_ENV
+
+      - name: Upload JSON Report Artifact
+        if: always()
+        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
+        with:
+          name: gitleaks-json-report
+          path: gitleaks.json
+          retention-days: 14
+
+      - name: Upload SARIF Report Artifact
+        if: always()
+        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
+        with:
+          name: gitleaks-sarif-report
+          path: gitleaks.sarif
+          retention-days: 14
+
+      - name: Upload SARIF to GitHub Security Tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: gitleaks.sarif
+          category: gitleaks-scan
+
+      - name: Evaluate Scan Results
+        run: |
+          if [ "${{ env.JSON_EXIT_CODE }}" -ne 0 ] || [ "${{ env.SARIF_EXIT_CODE }}" -ne 0 ]; then
+            echo "::error::Secrets detected in commit history! Please review the uploaded reports in your security tab or artifacts."
+            exit 1
+          fi
+          echo "Secret scanning completed successfully. No leaks found."
 
   sbom-verification:
     name: Generate & Verify SBOM
@@ -82,6 +147,7 @@ jobs:
     name: OpenSSF Scorecard
     if: ${{ github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       security-events: write
       id-token: write
@@ -89,17 +155,20 @@ jobs:
       actions: read
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           persist-credentials: false
+
       - name: Run OpenSSF Scorecard
-        uses: ossf/scorecard-action@v2.4.0
+        uses: ossf/scorecard-action@62b2cac7ed8198b15735ed49ab1e5cf35480ba46 # v2.4.0
         with:
           results_file: results.sarif
           results_format: sarif
-          publish_results: true
+          publish_results: ${{ github.repository == 'RelayDispatch/relaydispatch' }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Upload Scorecard SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: results.sarif
           category: scorecard
