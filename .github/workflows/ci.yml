@@ -1,198 +1,50 @@
-# .github/workflows/ci.yml
-# ─────────────────────────────────────────────────────────────
-# RelayDispatch — Primary CI Pipeline
-#
-# Triggers:
-#   push   → main, develop
-#   PR     → main, develop
-#
-# Jobs (in parallel unless noted):
-#   quality  — typecheck + lint (fast gate, no install cache miss)
-#   test     — vitest unit + integration + security + workflow tests
-#   build    — production bundle verification (after quality + test)
-#   docker   — build Docker image and verify it starts (after build)
-#
-# Design principles:
-#   - Each job installs its own deps (npm ci) using the npm cache.
-#     This is intentional: it prevents stale cache artifacts from
-#     masking real install-time errors.
-#   - The build job is gated on quality+test passing, never the reverse.
-#   - `cancel-in-progress: true` so stale PR runs are cleaned up.
-#   - `NODE_AUTH_TOKEN` is NOT set — this project does not publish to npm.
-#
-# Environment secrets required (none for CI — all mocked):
-#   None. Tests use MSW mocks for all external services.
-# ─────────────────────────────────────────────────────────────
-
 name: CI
-
-# Restrict default token to read-only on public repo.
-# Individual jobs may declare additional permissions if needed (none do here).
-permissions:
-  contents: read
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
-    branches: [main, develop]
+    branches: [main]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-defaults:
-  run:
-    shell: bash
-
-env:
-  NODE_VERSION: '22'
+permissions:
+  contents: read
+  packages: write
+  id-token: write
 
 jobs:
-  # ── Job 1: Quality gate (typecheck + lint) ──────────────────
-  quality:
-    name: Quality Gate (TypeCheck + Lint)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+  node-verify:
+    name: Node Quality Gate
+    uses: ./.github/workflows/node.yml
+    with:
+      node-version: '24'
+      run-lint: true
 
-      - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+  testing:
+    name: Execute Tests
+    needs: node-verify
+    uses: ./.github/workflows/test.yml
+    with:
+      node-version: '24'
+      test-command: 'test:coverage'
+      upload-coverage: true
 
-      - name: Install dependencies
-        run: npm ci
+  build-verify:
+    name: Build Verification
+    needs: node-verify
+    uses: ./.github/workflows/build.yml
+    with:
+      node-version: '24'
+      build-command: 'build'
+      artifact-name: 'ci-build-dist'
 
-      - name: TypeScript — frontend
-        run: npm run typecheck:web
-
-      - name: TypeScript — backend
-        run: npm run typecheck:api
-
-      - name: ESLint
-        run: npm run lint
-
-  # ── Job 2: Unit + Integration + Security + Workflow tests ───
-  test:
-    name: Test Suite
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run all tests with coverage
-        run: npm run test:coverage
-        env:
-          # Deterministic vault key for tests (not real production secret)
-          VAULT_ENCRYPTION_KEY: cc2df5bd177d37b8e2f3c20c54278818d4071bee82f7c704322ca863224155b2
-          SUPABASE_URL: https://mock-supabase.supabase.co
-          SUPABASE_SERVICE_ROLE_KEY: mock-key-ci
-          OPENROUTER_API_KEY: mock-or-key-ci
-          AGENT_NAME: Dispatch
-          AGENT_BRAND: RelayDispatch
-          NODE_ENV: test
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: coverage-report
-          path: coverage/
-          retention-days: 14
-
-  # ── Job 3: Production build verification ────────────────────
-  build:
-    name: Production Build
-    runs-on: ubuntu-latest
-    needs: [quality, test]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build web bundle
-        run: npm run build:web
-
-      - name: Build API bundle
-        run: npm run build:api
-
-      - name: Verify build artifacts exist
-        run: |
-          test -f dist/index.html                   || (echo "❌ dist/index.html missing"                   && exit 1)
-          test -f dist/server.cjs                   || (echo "❌ dist/server.cjs missing"                   && exit 1)
-          test -f dist/apps/api/src/index.js        || (echo "❌ dist/apps/api/src/index.js missing"        && exit 1)
-          test -f dist/apps/worker/src/index.js     || (echo "❌ dist/apps/worker/src/index.js missing"     && exit 1)
-          echo "✅ Build artifacts verified"
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-dist-${{ github.sha }}
-          path: |
-            dist/
-            apps/api/dist/
-          retention-days: 7
-
-  # ── Job 4: Docker image build verification ──────────────────
-  docker:
-    name: Docker Build
-    runs-on: ubuntu-latest
-    needs: [build]
-    # Only run on pushes to main/develop (not every PR to save CI minutes)
-    if: github.event_name == 'push'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker image (no push)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: false
-          tags: relaydispatch:ci-${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Verify image starts (smoke test)
-        run: |
-          # Start the API container in the background, wait up to 10s for it to
-          # initialise, then verify it exits with code 0 (or is still running).
-          # This confirms Node.js binary + application module graph loads correctly.
-          docker run --rm -d \
-            --name relay-smoke \
-            --env SUPABASE_URL=https://placeholder.supabase.co \
-            --env SUPABASE_SERVICE_ROLE_KEY=placeholder \
-            --env VAULT_ENCRYPTION_KEY=cc2df5bd177d37b8e2f3c20c54278818d4071bee82f7c704322ca863224155b2 \
-            --env NODE_ENV=production \
-            --target api \
-            relaydispatch:ci-${{ github.sha }}
-          # Give the server 5 seconds to boot
-          sleep 5
-          # Verify the container is still running (didn't crash on startup)
-          docker inspect --format '{{.State.Running}}' relay-smoke | grep -q '^true$' \
-            && echo "✅ Container running after 5s" \
-            || (docker logs relay-smoke && exit 1)
-          docker stop relay-smoke || true
+  docker-smoke-build:
+    name: Docker Smoke Build
+    needs: build-verify
+    uses: ./.github/workflows/docker.yml
+    with:
+      image-name: relaydispatch/relaydispatch
+      push: false

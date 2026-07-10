@@ -1,0 +1,67 @@
+name: Reusable SBOM Pipeline
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version'
+        required: false
+        type: string
+        default: '24'
+      package-manager:
+        description: 'Package manager type'
+        required: false
+        type: string
+        default: 'npm'
+      artifact-name:
+        description: 'Upload artifact name'
+        required: false
+        type: string
+        default: 'sbom'
+      attest:
+        description: 'Whether to attest SBOM'
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      sbom-path:
+        description: 'Path of the generated SBOM'
+        value: sbom.cdx.json
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+jobs:
+  sbom:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: ${{ inputs.package-manager }}
+
+      - name: Install dependencies
+        uses: ./.github/actions/install
+
+      - name: Generate CycloneDX SBOM
+        run: npx --yes @cyclonedx/cyclonedx-npm --output-format JSON --output-file sbom.cdx.json
+
+      - name: Upload SBOM Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: sbom.cdx.json
+          retention-days: 14
+
+      - name: Attest SBOM
+        if: ${{ inputs.attest && github.ref == 'refs/heads/main' }}
+        uses: actions/attest-sbom@v2
+        with:
+          subject-path: sbom.cdx.json
+          sbom-path: sbom.cdx.json

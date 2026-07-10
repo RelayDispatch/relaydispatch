@@ -1,0 +1,22 @@
+name: 'RelayDispatch Docker Login'
+description: 'Authenticates against a secure container registry'
+inputs:
+  registry:
+    description: 'Target container registry (e.g. ghcr.io)'
+    required: false
+    default: 'ghcr.io'
+  username:
+    description: 'Username or actor identity'
+    required: true
+  password:
+    description: 'Registry authentication token or password'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: Authenticate with Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ inputs.registry }}
+        username: ${{ inputs.username }}
+        password: ${{ inputs.password }}

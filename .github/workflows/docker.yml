@@ -1,0 +1,92 @@
+name: Reusable Docker Pipeline
+
+on:
+  workflow_call:
+    inputs:
+      image-name:
+        description: 'Name of the docker image'
+        required: true
+        type: string
+      push:
+        description: 'Push image to registry if true'
+        required: false
+        type: boolean
+        default: false
+      registry:
+        description: 'Registry to login and push'
+        required: false
+        type: string
+        default: 'ghcr.io'
+      platforms:
+        description: 'Target architectures'
+        required: false
+        type: string
+        default: 'linux/amd64,linux/arm64'
+    secrets:
+      registry-username:
+        description: 'Username for docker registry'
+        required: false
+      registry-password:
+        description: 'Password or token for docker registry'
+        required: false
+    outputs:
+      image-name:
+        description: 'Built image name'
+        value: ${{ jobs.docker.outputs.image-name }}
+      image-digest:
+        description: 'Built image digest'
+        value: ${{ jobs.docker.outputs.image-digest }}
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    outputs:
+      image-name: ${{ inputs.image-name }}
+      image-digest: ${{ steps.build-push.outputs.digest }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup QEMU Emulator
+        uses: ./.github/actions/setup-qemu
+
+      - name: Setup Docker Buildx
+        uses: ./.github/actions/setup-buildx
+
+      - name: Login to Docker Registry
+        if: ${{ inputs.push }}
+        uses: ./.github/actions/docker-login
+        with:
+          registry: ${{ inputs.registry }}
+          username: ${{ secrets.registry-username || github.actor }}
+          password: ${{ secrets.registry-password || secrets.GITHUB_TOKEN }}
+
+      - name: OCI Container Metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ inputs.registry }}/${{ inputs.image-name }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-
+
+      - name: Build and Push Image
+        id: build-push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: ${{ inputs.push }}
+          platforms: ${{ inputs.platforms }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

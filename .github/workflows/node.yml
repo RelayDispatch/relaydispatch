@@ -1,0 +1,51 @@
+name: Reusable Node Pipeline
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version'
+        required: false
+        type: string
+        default: '24'
+      package-manager:
+        description: 'Package manager type'
+        required: false
+        type: string
+        default: 'npm'
+      run-lint:
+        description: 'Whether to execute lint and typecheck checks'
+        required: false
+        type: boolean
+        default: true
+    outputs:
+      node-version:
+        description: 'Node.js version used'
+        value: ${{ inputs.node-version }}
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: ${{ inputs.package-manager }}
+
+      - name: Install dependencies
+        uses: ./.github/actions/install
+
+      - name: Typecheck
+        if: ${{ inputs.run-lint }}
+        run: npm run typecheck
+
+      - name: Lint
+        if: ${{ inputs.run-lint }}
+        run: npm run lint

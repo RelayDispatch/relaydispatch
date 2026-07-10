@@ -1,0 +1,42 @@
+name: 'RelayDispatch Setup Node'
+description: 'Sets up Node.js with caching and verification'
+inputs:
+  node-version:
+    description: 'Node.js version'
+    required: false
+    default: '24'
+  cache:
+    description: 'Package manager cache type'
+    required: false
+    default: 'npm'
+  working-directory:
+    description: 'Working directory context'
+    required: false
+    default: '.'
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: ${{ inputs.cache }}
+        cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+
+    - name: Verify package-lock.json exists
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        if [[ ! -f package-lock.json ]]; then
+          echo "::error::package-lock.json is required but missing."
+          exit 1
+        fi
+
+    - name: Verify package.json exists
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: test -f package.json
+
+    - name: Clean npm cache metadata
+      shell: bash
+      run: npm cache verify

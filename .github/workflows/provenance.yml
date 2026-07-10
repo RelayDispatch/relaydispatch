@@ -1,0 +1,39 @@
+name: Reusable Provenance Pipeline
+
+on:
+  workflow_call:
+    inputs:
+      subject-path:
+        description: 'File path of artifact to attest'
+        required: false
+        type: string
+      subject-name:
+        description: 'Docker image name to attest'
+        required: false
+        type: string
+      subject-digest:
+        description: 'Docker image digest to attest'
+        required: false
+        type: string
+
+permissions:
+  id-token: write
+  attestations: write
+  contents: read
+
+jobs:
+  attest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Attest Build Provenance
+        if: ${{ inputs.subject-path != '' }}
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ inputs.subject-path }}
+
+      - name: Attest Container Image Provenance
+        if: ${{ inputs.subject-name != '' && inputs.subject-digest != '' }}
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ inputs.subject-name }}
+          subject-digest: ${{ inputs.subject-digest }}

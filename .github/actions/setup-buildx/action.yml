@@ -1,0 +1,14 @@
+name: 'RelayDispatch Setup Buildx'
+description: 'Standardized setup for Docker Buildx builder instance'
+inputs:
+  driver:
+    description: 'Docker buildx driver'
+    required: false
+    default: 'docker-container'
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        driver: ${{ inputs.driver }}

@@ -1,0 +1,65 @@
+name: Reusable Test Pipeline
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version'
+        required: false
+        type: string
+        default: '24'
+      package-manager:
+        description: 'Package manager type'
+        required: false
+        type: string
+        default: 'npm'
+      test-command:
+        description: 'Test command to execute'
+        required: false
+        type: string
+        default: 'test:coverage'
+      upload-coverage:
+        description: 'Upload test coverage report as artifact'
+        required: false
+        type: boolean
+        default: true
+    outputs:
+      test-status:
+        description: 'Result of test execution'
+        value: ${{ jobs.test.outputs.status }}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.run-tests.outcome }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: ${{ inputs.package-manager }}
+
+      - name: Install dependencies
+        uses: ./.github/actions/install
+
+      - name: Run Tests
+        id: run-tests
+        env:
+          NODE_ENV: test
+          VAULT_ENCRYPTION_KEY: test-key-for-workflow-verification-purpose
+        run: npm run ${{ inputs.test-command }}
+
+      - name: Upload Coverage Results
+        if: ${{ inputs.upload-coverage && always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-coverage-report
+          path: coverage/
+          retention-days: 7

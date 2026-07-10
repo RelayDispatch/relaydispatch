@@ -1,0 +1,14 @@
+name: 'RelayDispatch Setup QEMU'
+description: 'Configures QEMU emulator support for multi-platform container builds'
+inputs:
+  platforms:
+    description: 'QEMU emulator platforms'
+    required: false
+    default: 'all'
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: ${{ inputs.platforms }}

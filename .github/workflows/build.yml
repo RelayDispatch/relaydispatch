@@ -1,0 +1,67 @@
+name: Reusable Build Pipeline
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version'
+        required: false
+        type: string
+        default: '24'
+      package-manager:
+        description: 'Package manager type'
+        required: false
+        type: string
+        default: 'npm'
+      build-command:
+        description: 'Build command script to run'
+        required: false
+        type: string
+        default: 'build'
+      artifact-name:
+        description: 'Upload package artifact identifier'
+        required: false
+        type: string
+        default: 'build-dist'
+    outputs:
+      artifact-name:
+        description: 'Name of the uploaded build artifact'
+        value: ${{ jobs.build.outputs.artifact-name }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      artifact-name: ${{ inputs.artifact-name }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: ${{ inputs.package-manager }}
+
+      - name: Install dependencies
+        uses: ./.github/actions/install
+
+      - name: Build Project
+        run: npm run ${{ inputs.build-command }}
+
+      - name: Verify build output directory
+        run: |
+          if [[ ! -d dist ]]; then
+            echo "::error::Output directory 'dist/' is missing."
+            exit 1
+          fi
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: dist/
+          retention-days: 7

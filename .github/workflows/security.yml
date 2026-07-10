@@ -1,32 +1,9 @@
-# .github/workflows/security.yml
-# ─────────────────────────────────────────────────────────────
-# RelayDispatch — Security Scanning Pipeline
-#
-# Triggers:
-#   schedule  → Every Monday at 09:00 UTC (weekly full scan)
-#   push      → main (post-merge verification)
-#   PR        → main (block if new critical/high vulns introduced)
-#   dispatch  → workflow_dispatch (manual trigger for on-demand scans)
-#
-# Jobs:
-#   sca       — Software Composition Analysis (npm audit + Trivy FS)
-#   codeql    — SAST: GitHub CodeQL for TypeScript/JavaScript
-#   secrets   — Secret detection with Gitleaks (pre-prod guard)
-#   sbom      — SBOM generation (CycloneDX format, stored as artifact)
-#   ossf      — OpenSSF Scorecard (runs weekly only — slow external call)
-#
-# Permissions follow the principle of least privilege.
-# Each job declares only the minimum permissions it requires.
-# ─────────────────────────────────────────────────────────────
-
-name: Security
+name: Security Pipeline
 
 on:
   schedule:
-    - cron: '0 9 * * 1'   # Every Monday at 09:00 UTC
+    - cron: '0 9 * * 1'
   push:
-    branches: [main]
-  pull_request:
     branches: [main]
   workflow_dispatch:
 
@@ -34,40 +11,39 @@ concurrency:
   group: security-${{ github.ref }}
   cancel-in-progress: true
 
-defaults:
-  run:
-    shell: bash
-
-env:
-  NODE_VERSION: '22'
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  id-token: write
+  attestations: write
 
 jobs:
-  # ── Job 1: Software Composition Analysis (SCA) ──────────────
-  sca:
-    name: SCA — Dependency Vulnerabilities
+  codeql:
+    name: SAST CodeQL Scan
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
-
-      - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          languages: typescript, javascript
+          queries: security-and-quality
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: codeql-ts
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: npm audit (block on critical/high)
-        run: npm audit --audit-level=high
-        # Note: moderate and low findings are reported but do not block CI.
-        # They are tracked in security/vulnerability-log.md.
-
-      - name: Trivy filesystem scan
+  trivy:
+    name: Trivy FS Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Run Trivy File System Scan
         uses: aquasecurity/trivy-action@0.30.0
         with:
           scan-type: fs
@@ -75,128 +51,54 @@ jobs:
           format: sarif
           output: trivy-fs.sarif
           severity: CRITICAL,HIGH
-          exit-code: '0'   # report, but do not fail the job (advisory-only for FS scan)
-
-      - name: Upload Trivy FS scan results to GitHub Security
+      - name: Upload Scan Results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-fs.sarif
           category: trivy-fs
 
-  # ── Job 2: CodeQL SAST ──────────────────────────────────────
-  codeql:
-    name: SAST — CodeQL
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: typescript, javascript
-          # Use the default security-and-quality query suite
-          queries: security-and-quality
-
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
-
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
-        with:
-          category: codeql-ts
-
-  # ── Job 3: Secret Detection ─────────────────────────────────
   secrets:
-    name: Secret Detection — Gitleaks
+    name: Secret Scanning
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write
     steps:
-      - name: Checkout (full history for secret scan)
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Gitleaks — detect secrets in commit history
+      - name: Gitleaks Scan
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}  # optional: for org features
 
-  # ── Job 4: SBOM Generation ──────────────────────────────────
-  sbom:
-    name: SBOM — CycloneDX
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+  sbom-verification:
+    name: Generate & Verify SBOM
+    uses: ./.github/workflows/sbom.yml
+    with:
+      node-version: '24'
+      artifact-name: 'security-sbom'
+      attest: true
 
-      - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Generate CycloneDX SBOM
-        run: npx --yes @cyclonedx/cyclonedx-npm --output-format JSON --output-file sbom.cdx.json
-
-      - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom-${{ github.sha }}
-          path: sbom.cdx.json
-          retention-days: 90
-
-      - name: Attest SBOM (signed provenance on main)
-        if: github.ref == 'refs/heads/main'
-        uses: actions/attest-sbom@v2
-        with:
-          subject-path: sbom.cdx.json
-          sbom-path: sbom.cdx.json
-
-  # ── Job 5: OpenSSF Scorecard ─────────────────────────────────
-  # Runs on schedule and push to main only (slow external API call)
   scorecard:
     name: OpenSSF Scorecard
+    if: ${{ github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     permissions:
       security-events: write
       id-token: write
       contents: read
       actions: read
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-
       - name: Run OpenSSF Scorecard
         uses: ossf/scorecard-action@v2.4.0
         with:
           results_file: results.sarif
           results_format: sarif
           publish_results: true
-
-      - name: Upload Scorecard results
-        uses: actions/upload-artifact@v4
-        with:
-          name: scorecard-${{ github.sha }}
-          path: results.sarif
-          retention-days: 30
-
-      - name: Upload Scorecard results to GitHub Security
+      - name: Upload Scorecard SARIF to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: results.sarif
