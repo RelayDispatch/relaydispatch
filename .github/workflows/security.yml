@@ -13,16 +13,16 @@ concurrency:
 
 permissions:
   contents: read
-  security-events: write
-  actions: read
-  id-token: write
-  attestations: write
 
 jobs:
   codeql:
     name: SAST CodeQL Scan
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
     steps:
       - name: Checkout Code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -45,6 +45,9 @@ jobs:
     name: Trivy FS Scan
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - name: Checkout Code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -101,18 +104,25 @@ jobs:
 
       - name: Run Gitleaks Security Scan
         run: |
+          JSON_EXIT=0
+          SARIF_EXIT=0
+          
           # Generate JSON report (capture exit status to prevent early termination)
-          ./gitleaks git --source=. --verbose --redact --format=json --report-path=gitleaks.json || JSON_EXIT=$?
+          ./gitleaks git --verbose --redact --report-format=json --report-path=gitleaks.json || JSON_EXIT=$?
           
           # Generate SARIF report (capture exit status)
-          ./gitleaks git --source=. --verbose --redact --format=sarif --report-path=gitleaks.sarif || SARIF_EXIT=$?
+          ./gitleaks git --verbose --redact --report-format=sarif --report-path=gitleaks.sarif || SARIF_EXIT=$?
           
           # Pass exit codes to GitHub Actions environment
           echo "JSON_EXIT_CODE=$JSON_EXIT" >> $GITHUB_ENV
           echo "SARIF_EXIT_CODE=$SARIF_EXIT" >> $GITHUB_ENV
+          
+          # Check if report files were created
+          [ -f gitleaks.json ] && echo "JSON_EXISTS=true" >> $GITHUB_ENV || echo "JSON_EXISTS=false" >> $GITHUB_ENV
+          [ -f gitleaks.sarif ] && echo "SARIF_EXISTS=true" >> $GITHUB_ENV || echo "SARIF_EXISTS=false" >> $GITHUB_ENV
 
       - name: Upload JSON Report Artifact
-        if: always()
+        if: always() && env.JSON_EXISTS == 'true'
         uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
         with:
           name: gitleaks-json-report
@@ -120,7 +130,7 @@ jobs:
           retention-days: 14
 
       - name: Upload SARIF Report Artifact
-        if: always()
+        if: always() && env.SARIF_EXISTS == 'true'
         uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
         with:
           name: gitleaks-sarif-report
@@ -128,7 +138,7 @@ jobs:
           retention-days: 14
 
       - name: Upload SARIF to GitHub Security Tab
-        if: always()
+        if: always() && env.SARIF_EXISTS == 'true'
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: gitleaks.sarif
@@ -137,7 +147,11 @@ jobs:
       - name: Evaluate Scan Results
         run: |
           if [ "${{ env.JSON_EXIT_CODE }}" -ne 0 ] || [ "${{ env.SARIF_EXIT_CODE }}" -ne 0 ]; then
-            echo "::error::Secrets detected in commit history! Please review the uploaded reports in your security tab or artifacts."
+            echo "::error::Secrets detected in commit history! Please review the Gitleaks reports or Security tab."
+            exit 1
+          fi
+          if [ "${{ env.JSON_EXISTS }}" != "true" ] || [ "${{ env.SARIF_EXISTS }}" != "true" ]; then
+            echo "::error::Gitleaks report files were not generated!"
             exit 1
           fi
           echo "Secret scanning completed successfully. No leaks found."
@@ -145,6 +159,10 @@ jobs:
   sbom-verification:
     name: Generate & Verify SBOM
     uses: ./.github/workflows/sbom.yml
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     with:
       node-version: '24'
       artifact-name: 'security-sbom'
