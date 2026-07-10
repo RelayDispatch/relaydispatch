@@ -1,0 +1,31 @@
+title = "RelayDispatch Gitleaks config"
+
+[allowlist]
+  description = "Known-fake example, test, and CI placeholder credentials"
+  paths = [
+    '''\.env\.example$''',
+    '''DEVELOPER_GUIDE\.md$''',
+    '''tests/fixtures/factories\.ts$''',
+    '''tests/integration/email-to-jobber\.test\.ts$''',
+    '''tests/unit/sanitization\.test\.ts$''',
+    '''\.github/workflows/ci\.yml$''',
+    '''\.github/workflows/release\.yml$''',
+    '''\.github/workflows/test\.yml$''',
+  ]
+  regexes = [
+    # Deterministic 32-byte hex keys used only in tests/CI (not production secrets)
+    '''cc2df5bd177d37b8e2f3c20c54278818d4071bee82f7c704322ca863224155b2''',
+    '''aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899''',
+    # Mock service keys in integration/unit tests
+    '''mock-or-key-\d+''',
+    '''mock-key-\d+''',
+    '''mock-nylas-key-\d+''',
+    '''mock-or-key-ci''',
+    '''mock-key-ci''',
+    '''test-key-for-workflow-verification-purpose''',
+    # .env.example placeholder patterns
+    '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.REPLACE_ME''',
+    '''sk-or-v1-REPLACE_ME''',
+    '''nyk_v0_REPLACE_ME''',
+    '''REPLACE_WITH_64_HEX_CHARS(_GENERATED_LOCALLY)?''',
+  ]

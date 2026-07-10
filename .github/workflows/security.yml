@@ -108,10 +108,10 @@ jobs:
           SARIF_EXIT=0
           
           # Generate JSON report (capture exit status to prevent early termination)
-          ./gitleaks git --verbose --redact --report-format=json --report-path=gitleaks.json || JSON_EXIT=$?
+          ./gitleaks git --config .gitleaks.toml --verbose --redact --report-format=json --report-path=gitleaks.json || JSON_EXIT=$?
           
           # Generate SARIF report (capture exit status)
-          ./gitleaks git --verbose --redact --report-format=sarif --report-path=gitleaks.sarif || SARIF_EXIT=$?
+          ./gitleaks git --config .gitleaks.toml --verbose --redact --report-format=sarif --report-path=gitleaks.sarif || SARIF_EXIT=$?
           
           # Pass exit codes to GitHub Actions environment
           echo "JSON_EXIT_CODE=$JSON_EXIT" >> $GITHUB_ENV
@@ -167,33 +167,3 @@ jobs:
       node-version: '24'
       artifact-name: 'security-sbom'
       attest: true
-
-  scorecard:
-    name: OpenSSF Scorecard
-    if: ${{ github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      security-events: write
-      id-token: write
-      contents: read
-      actions: read
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-        with:
-          persist-credentials: false
-
-      - name: Run OpenSSF Scorecard
-        uses: ossf/scorecard-action@62b2cac7ed8198b15735ed49ab1e5cf35480ba46 # v2.4.0
-        with:
-          results_file: results.sarif
-          results_format: sarif
-          publish_results: ${{ github.repository == 'RelayDispatch/relaydispatch' }}
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Scorecard SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: results.sarif
-          category: scorecard

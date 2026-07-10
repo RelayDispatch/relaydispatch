@@ -174,10 +174,9 @@ describe('WF3 — Continue-As-New threshold guard', () => {
 // ============================================================
 
 describe('WF4 — Phase transition guards', () => {
-  it('emergency → ESCALATED_TO_HUMAN immediately (urgency >= 90 + EMERGENCY category)', () => {
+  it('emergency → ESCALATED_TO_HUMAN immediately (urgency >= 90)', () => {
     const urgency = 95;
-    const category = 'EMERGENCY';
-    // Simulates the emergency pre-filter logic
+    const category = 'AC_REPAIR';
     const isEmergency = urgency >= 90 || category === 'EMERGENCY';
     expect(isEmergency).toBe(true);
   });
@@ -314,7 +313,7 @@ describe('WF7 — Inactivity timeout: thread closure logic', () => {
   });
 
   it('thread does NOT close when pendingReply is set', () => {
-    const pendingReply: CustomerReplyPayload | undefined = {
+    const pendingReply: CustomerReplyPayload = {
       bodyText: 'Some reply',
       htmlBody: '',
       fromEmail: 'c@test.example',
@@ -323,7 +322,7 @@ describe('WF7 — Inactivity timeout: thread closure logic', () => {
       receivedAt: '2026-01-01T00:00:00Z',
     };
     const gotSignal = false;
-    const shouldClose = !gotSignal && pendingReply === undefined;
+    const shouldClose = !gotSignal && pendingReply == null;
     expect(shouldClose).toBe(false);
   });
 });

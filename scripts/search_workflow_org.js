@@ -1,5 +1,4 @@
 import fs from 'fs';
-import path from 'path';
 
 function searchInFile(filePath, term) {
   const content = fs.readFileSync(filePath, 'utf-8');

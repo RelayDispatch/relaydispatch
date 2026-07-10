@@ -27,20 +27,6 @@ function check(label, ok, detail = '') {
   return ok;
 }
 
-// ── Helper: service-role HTTP calls (bypasses JWT for test) ───
-async function sbFetch(path, method = 'GET', body = null) {
-  const opts = {
-    method,
-    headers: {
-      'Content-Type':  'application/json',
-      'apikey':         process.env.SUPABASE_SERVICE_ROLE_KEY,
-      'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-    },
-  };
-  if (body) opts.body = JSON.stringify(body);
-  return fetch(`${process.env.SUPABASE_URL}/rest/v1${path}`, opts);
-}
-
 console.log('\n━━━ RelayDispatch Dispatch E2E Validation ━━━━━━━━━━━━━━━━━━━\n');
 
 // ── Step 1: Resolve test org ──────────────────────────────────

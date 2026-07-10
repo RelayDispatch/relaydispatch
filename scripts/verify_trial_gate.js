@@ -8,6 +8,16 @@ const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(SB_URL, SB_KEY);
 const testOrgId = '00000000-0000-0000-0000-000000000001';
 
+function isTrustedStripeCheckoutUrl(url) {
+  if (url === 'cs_test_mock') return true;
+  try {
+    const { hostname } = new URL(url);
+    return hostname === 'stripe.com' || hostname.endsWith('.stripe.com');
+  } catch {
+    return false;
+  }
+}
+
 async function verify() {
   console.log('--- Subscriptions & Trial Gate Verification ---');
 
@@ -65,7 +75,7 @@ async function verify() {
   const stripeJson = await stripeRes.json();
   console.log('- Response body:', stripeJson);
 
-  const isBypassOk = stripeRes.status === 200 && stripeJson.url && (stripeJson.url.includes('stripe.com') || stripeJson.url.includes('cs_test_mock'));
+  const isBypassOk = stripeRes.status === 200 && stripeJson.url && isTrustedStripeCheckoutUrl(stripeJson.url);
   console.log(`- Stripe bypass status: ${isBypassOk ? '✅ SUCCESS' : '❌ FAILED'}`);
 
   // 5. Clean up: reset org trial to active (+14 days) and delete test user/member

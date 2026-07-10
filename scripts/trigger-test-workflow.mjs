@@ -16,7 +16,6 @@ import { createDotenv } from './load-env.mjs';
 createDotenv();               // loads .env before anything else
 
 import { Connection, Client } from '@temporalio/client';
-import { randomUUID }         from 'node:crypto';
 
 const TEMPORAL_ADDRESS   = process.env.TEMPORAL_ADDRESS   ?? 'localhost:7233';
 const TEMPORAL_NAMESPACE = process.env.TEMPORAL_NAMESPACE ?? 'relaydispatch-dispatch';

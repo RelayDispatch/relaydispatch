@@ -41,9 +41,6 @@ function randomUUID() {
 }
 
 // ── Custom metrics ────────────────────────────────────────────
-const escalationsFired   = new Counter('relaydispatch_escalations_total');
-const priceSourced       = new Counter('relaydispatch_price_sourced_db_total');
-const duplicateEmails    = new Counter('relaydispatch_duplicate_emails_total');
 const workflowErrors     = new Counter('relaydispatch_workflow_errors_total');
 const intakeLatency      = new Trend('relaydispatch_intake_latency_ms', true);
 const dlqDepth           = new Counter('relaydispatch_dlq_inserts_total');
