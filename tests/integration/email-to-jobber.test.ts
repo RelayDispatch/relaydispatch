@@ -24,7 +24,7 @@ process.env.VAULT_ENCRYPTION_KEY = 'cc2df5bd177d37b8e2f3c20c54278818d4071bee82f7
 process.env.AGENT_NAME = 'Dispatch';
 process.env.AGENT_BRAND = 'RelayDispatch';
 
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { setupServer }   from 'msw/node';
 import { http, HttpResponse } from 'msw';
 
@@ -60,8 +60,7 @@ const server = setupServer(
   }),
 
   // Supabase: messages insert
-  http.post('https://mock-supabase.supabase.co/rest/v1/messages', (req) => {
-    const body = req.request.body;
+  http.post('https://mock-supabase.supabase.co/rest/v1/messages', () => {
     // Verify sb243_footer_applied: true is in the payload
     return HttpResponse.json([{ id: 'msg-001' }], { status: 201 });
   }),

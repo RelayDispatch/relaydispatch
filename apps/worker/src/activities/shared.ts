@@ -17,6 +17,7 @@ import OpenAI             from 'openai';
 import Nylas              from 'nylas';
 import pino               from 'pino';
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
+import { convert }        from 'html-to-text';
 import type { Database }  from '../../../../packages/database/src/database.types.js';
 
 // ── Compatibility shim for Nylas CommonJS default export ────────────────────
@@ -182,14 +183,23 @@ export async function markActivityCompleted(key: string, meta?: Record<string, u
 // ============================================================
 
 export function stripHtmlTags(html: string): string {
-  return html
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"').replace(/\s{2,}/g, ' ')
-    .trim();
+  if (!html) return '';
+  const text = convert(html, {
+    wordwrap: false,
+    selectors: [
+      { selector: 'a', options: { ignoreHref: true } },
+      { selector: 'img', format: 'skip' },
+      { selector: 'style', format: 'skip' },
+      { selector: 'script', format: 'skip' },
+      { selector: 'h1', options: { uppercase: false } },
+      { selector: 'h2', options: { uppercase: false } },
+      { selector: 'h3', options: { uppercase: false } },
+      { selector: 'h4', options: { uppercase: false } },
+      { selector: 'h5', options: { uppercase: false } },
+      { selector: 'h6', options: { uppercase: false } }
+    ]
+  });
+  return text.replace(/\u00a0/g, ' ').trim();
 }
 
 export function categoryToLabel(category: string): string {

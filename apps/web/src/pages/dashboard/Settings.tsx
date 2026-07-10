@@ -8,15 +8,12 @@ import {
   AlertCircle,
   ToggleLeft,
   ToggleRight,
-  CheckCircle2,
   Briefcase,
   Sliders,
   Link2,
-  CreditCard,
   Copy,
   Check,
   Globe,
-  Shield,
   RefreshCw,
   Cpu,
   X
@@ -56,7 +53,6 @@ export const Settings: React.FC = () => {
 
   // AI config states
   const [dispatchMode, setDispatchMode] = useState<"shadow" | "autonomous">("shadow");
-  const [aiSaving, setAiSaving] = useState(false);
 
   // Provider live data
   const [usageStats, setUsageStats] = useState<any>(null);

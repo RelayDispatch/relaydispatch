@@ -7,7 +7,6 @@ import {
   log,
   supabase,
   nylas,
-  encryptVault,
   decryptVault,
   isActivityAlreadyCompleted,
   markActivityCompleted,
@@ -484,7 +483,7 @@ export async function sendEmailResponseActivity(params: {
     );
   }
 
-  return { nylasMessageId, nylasThreadId: params.nylasThreadId };
+  return { nylasMessageId, nylasThreadId: finalNylasThreadId };
 }
 
 // ============================================================

@@ -100,7 +100,7 @@ pricingRouter.delete('/:serviceCode', async (c) => {
   }
 
   // Soft delete pricing rules by marking them is_active = false
-  const { data, error } = await db
+  const { error } = await db
     .from('pricing_rules')
     .update({ is_active: false })
     .eq('org_id', member.org_id)

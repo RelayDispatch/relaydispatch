@@ -18,7 +18,7 @@
  *   H9 — Empty body: valid signature still accepted
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { createHmac } from 'node:crypto';
 
 // ── Inline the verifyPubSubSignature logic for unit testing ──

@@ -222,6 +222,10 @@ async function poll(): Promise<void> {
 
   log.info({ replayed, failed, permFailed }, 'DLQ poller: cycle complete');
 
+  // Increment OpenTelemetry metrics
+  if (replayed > 0) dlqReplayCounter.add(replayed);
+  if (permFailed > 0) dlqPermFailCounter.add(permFailed);
+
   // Emit summary for alerting — Grafana/Loki can alert on permFailed > 0
   if (permFailed > 0) {
     log.error(

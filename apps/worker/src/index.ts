@@ -28,7 +28,6 @@ validateWorkerEnv();
 import { fileURLToPath } from 'url';
 import { Worker, NativeConnection } from '@temporalio/worker';
 import * as activities from './activities/index.js';
-import { DISPATCH_WORKFLOW_NAME } from './dispatchWorkflow.js';
 import pino from 'pino';
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 

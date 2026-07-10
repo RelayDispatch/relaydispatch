@@ -12,7 +12,6 @@ import {
   Zap,
   AlertTriangle,
   CheckCircle,
-  Eye,
   ShieldAlert,
   Loader2,
   Phone
@@ -20,7 +19,7 @@ import {
 
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
-import { clearAuthenticated } from "../../lib/auth";
+import { clearAuthenticated } from "../../lib/auth.ts";
 import { apiClient } from "../../lib/apiClient";
 import { NewJobModal } from "./NewJobModal";
 import { useToast } from "./Toast";
@@ -60,8 +59,15 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isAlertsOpen, setIsAlertsOpen] = useState(false);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [org, setOrg] = useState<any>(null);
-  const [loadingOrg, setLoadingOrg] = useState(true);
   const popoverRef = useRef<HTMLDivElement>(null);
+
+  const [upgrading] = useState(false);
+  const handleUpgrade = () => {
+    toast.error(
+      "Upgrade Unavailable",
+      "Billing and upgrades are managed by your system administrator in this self-hosted deployment."
+    );
+  };
 
   const handleLogout = () => {
     clearAuthenticated();
@@ -90,8 +96,6 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         setOrg(res.org);
       } catch (err) {
         console.error("Failed to fetch organization settings in Layout:", err);
-      } finally {
-        setLoadingOrg(false);
       }
     };
     fetchOrg();

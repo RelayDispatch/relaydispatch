@@ -34,7 +34,7 @@ intakeRouter.post('/gmail', async (c) => {
   let payload: any;
   try {
     payload = JSON.parse(rawBody);
-  } catch (err) {
+  } catch {
     return c.json({ error: 'Invalid JSON' }, 400);
   }
 
@@ -74,7 +74,7 @@ intakeRouter.post('/gmail', async (c) => {
 
   // 5. Atomic thread upsert (ON CONFLICT DO NOTHING equivalent logic)
   const threadId = crypto.randomUUID();
-  const { data: thread, error: threadErr } = await sb
+  const { error: threadErr } = await sb
     .from('threads')
     .insert({
       id: threadId,

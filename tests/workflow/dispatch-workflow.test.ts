@@ -44,18 +44,15 @@ import {
 // ── Workflow types (no runtime imports) ───────────────────────
 import type {
   DispatchWorkflowInput,
-  ContinuationState,
   CustomerReplyPayload,
   HumanTakeoverPayload,
   ResolvePayload,
   ThreadState,
-  WorkflowPhase,
 } from '../../apps/worker/src/dispatchWorkflow.js';
 
 // ── Constants mirrored from workflow ─────────────────────────
 const CAN_TURN_THRESHOLD = 8;
 const MAX_TURNS          = 10;
-const DISPATCH_WORKFLOW_NAME = 'relayDispatchWorkflow';
 
 // ============================================================
 // WF1 — DispatchWorkflowInput contract
@@ -317,7 +314,7 @@ describe('WF7 — Inactivity timeout: thread closure logic', () => {
   });
 
   it('thread does NOT close when pendingReply is set', () => {
-    const pendingReply: CustomerReplyPayload = {
+    const pendingReply: CustomerReplyPayload | undefined = {
       bodyText: 'Some reply',
       htmlBody: '',
       fromEmail: 'c@test.example',

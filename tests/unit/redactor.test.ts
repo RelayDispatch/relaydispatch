@@ -82,7 +82,7 @@ describe('R2 — Email address in body text (by design: not redacted)', () => {
   it('does NOT redact email addresses found in body text (design decision)', () => {
     // The redactor has no EMAIL regex pattern — emails in body pass through.
     // The customer email comes from mail headers, not body text.
-    const { redactedText, matchCount } = redact('Please reply to john.doe@example.com for updates.');
+    const { redactedText } = redact('Please reply to john.doe@example.com for updates.');
     // No EMAIL match expected — email addresses are not in the regex set
     const emailMatches = Object.keys(
       redact('john.doe@example.com').vault
@@ -187,7 +187,6 @@ describe('R7 — NER name detection', () => {
     expect(customerKeys.length).toBeGreaterThanOrEqual(1);
     // John Smith as a whole, or split into parts — either way it should not appear in redacted text
     // and the vault should have at least one entry containing part of the name
-    const vaultValues = Object.values(vault);
     const nameRedacted = !redactedText.includes('John') || !redactedText.includes('Smith');
     expect(nameRedacted).toBe(true);
   });

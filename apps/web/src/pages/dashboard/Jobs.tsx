@@ -4,8 +4,6 @@ import {
   MapPin,
   Calendar,
   User,
-  MoreVertical,
-  ChevronDown,
   Hammer,
   Truck,
   CheckCircle,

@@ -2,22 +2,19 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Search,
-  Filter,
   MessageSquare,
   Sparkles,
   ArrowRight,
   ShieldAlert,
   Loader2,
-  CheckCircle2,
   Calendar,
-  Send,
   UserCheck,
   ChevronDown
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { apiClient } from "../../lib/apiClient";
 import { useAuth } from "../../lib/auth.tsx";
-import { getSessionToken } from "../../lib/auth";
+import { getSessionToken } from "../../lib/auth.ts";
 import { useToast } from "../../components/dashboard/Toast";
 import type { Thread, Message, Technician } from "../../types";
 

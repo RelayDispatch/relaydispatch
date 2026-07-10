@@ -15,7 +15,7 @@
  *   CG8 — Unknown model returns $0 (does not throw)
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 
 // ── Inline the cost functions to avoid live env dependencies ──
 

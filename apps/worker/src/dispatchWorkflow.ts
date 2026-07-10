@@ -25,7 +25,6 @@ import {
   defineQuery,
   setHandler,
   condition,
-  sleep,
   workflowInfo,
   log as wfLog,
   ApplicationFailure,
@@ -920,7 +919,7 @@ export async function relayDispatchWorkflow(
             wfLog.warn('Double booking detected on follow-up. Attempting compensating transaction...', { failedTechnician: followUpResult.assignedTechnicianId });
             
             const freshAvailableTechnicians = await fetchAvailableTechniciansActivity(input.orgId);
-            const filteredTechnicians = currentAvailableTechnicians.filter((t: { id: string }) => t.id !== followUpResult.assignedTechnicianId);
+            const filteredTechnicians = freshAvailableTechnicians.filter((t: { id: string }) => t.id !== followUpResult.assignedTechnicianId);
             followUpRequest.availableTechnicians = filteredTechnicians;
             
             followUpResult = await runDispatcherActivity(

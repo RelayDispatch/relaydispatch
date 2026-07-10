@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, Loader2, Server, ShieldCheck, Cpu } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { setAuthenticated } from '../../lib/auth';
+import { setAuthenticated } from '../../lib/auth.ts';
 import { apiClient } from '../../lib/apiClient';
 import { useToast } from '../dashboard/Toast';
 
