@@ -86,13 +86,13 @@
     "autoprefixer": "^10.4.21",
     "concurrently": "^8.2.2",
     "esbuild": "^0.25.0",
-    "eslint": "^9.22.0",
+    "eslint": "^10.6.0",
     "msw": "^2.12.14",
     "pino-pretty": "^13.0.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
-    "typescript": "~5.8.2",
-    "vitest": "^3.2.6"
+    "typescript": "~7.0.2",
+    "vitest": "^4.1.10"
   },
   "overrides": {
     "ws": "^8.21.0",
