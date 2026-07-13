@@ -60,7 +60,7 @@
     "express-rate-limit": "^8.5.2",
     "hono": "^4.12.28",
     "html-to-text": "^10.0.0",
-    "lucide-react": "^0.546.0",
+    "lucide-react": "^1.24.0",
     "motion": "^12.23.24",
     "nylas": "^8.4.0",
     "openai": "^6.33.0",
