@@ -58,7 +58,7 @@
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "express-rate-limit": "^8.5.2",
-    "hono": "^4.12.28",
+    "hono": "^4.13.7",
     "html-to-text": "^10.0.0",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
